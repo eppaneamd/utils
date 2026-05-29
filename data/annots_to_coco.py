@@ -58,8 +58,9 @@ def resolve_dims(filename, image_size, images_dir):
             from PIL import Image
             with Image.open(Path(images_dir) / filename) as img:
                 return img.size  # (width, height)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[warn] could not read dims from {Path(images_dir) / filename}: {e}",
+                  file=sys.stderr)
     return image_size or (None, None)
 
 
