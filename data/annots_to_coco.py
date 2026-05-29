@@ -54,13 +54,9 @@ def load_records(paths):
 
 def resolve_dims(filename, image_size, images_dir):
     if images_dir:
-        try:
-            from PIL import Image
-            with Image.open(Path(images_dir) / filename) as img:
-                return img.size  # (width, height)
-        except Exception as e:
-            print(f"[warn] could not read dims from {Path(images_dir) / filename}: {e}",
-                  file=sys.stderr)
+        from PIL import Image
+        with Image.open(Path(images_dir) / filename) as img:
+            return img.size  # (width, height)
     return image_size or (None, None)
 
 
@@ -133,6 +129,12 @@ def main():
     if args.image_size:
         w, h = args.image_size.lower().split("x", 1)
         image_size = (int(w), int(h))
+
+    if args.images_dir:
+        try:
+            import PIL  # noqa: F401
+        except ImportError:
+            sys.exit("[error] --images-dir requires Pillow: pip install Pillow")
 
     paths = collect_paths(args.inputs)
     if not paths:
