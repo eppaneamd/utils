@@ -3,7 +3,7 @@
 Convert bounding box annotation JSON files to COCO format.
 
 Coordinates in the input are normalized (0-1). Provide either --images-dir
-(reads dimensions per image file) or --image-size (uniform fallback).
+(reads dimensions per image file) or --image-size (uniform dimensions).
 
 Usage:
   python annots_to_coco.py annotations/ --image-size 1920x1080
@@ -46,9 +46,14 @@ def collect_paths(inputs):
 def load_records(paths):
     records = []
     for path in paths:
-        data = json.loads(path.read_text())
+        try:
+            data = json.loads(path.read_text())
+        except json.JSONDecodeError as e:
+            sys.exit(f"[error] malformed JSON in {path}: {e}")
         if "annotations" in data:
             records.extend(data["annotations"])
+        else:
+            print(f"[warning] no 'annotations' key in {path}, skipping", file=sys.stderr)
     return records
 
 
@@ -57,13 +62,13 @@ def resolve_dims(filename, image_size, images_dir):
         from PIL import Image
         with Image.open(Path(images_dir) / filename) as img:
             return img.size  # (width, height)
-    return image_size or (None, None)
+    return image_size
 
 
 def make_annotation(lbl, img_id, ann_id, cat_id, w, h):
     name = lbl.get("label", "").strip()
     geom = lbl.get("geometry", {})
-    if not name or geom.get("kind") != "box" or name not in cat_id:
+    if not name or geom.get("kind") != "box":
         return None
     b = geom.get("box", {})
     nx, ny, nw, nh = b.get("x"), b.get("y"), b.get("width"), b.get("height")
@@ -81,7 +86,7 @@ def make_annotation(lbl, img_id, ann_id, cat_id, w, h):
     }
 
 
-def build_coco(records, image_size, images_dir):
+def build_coco(records, image_size, images_dir, source):
     all_names = sorted({
         lbl["label"].strip()
         for rec in records
@@ -117,7 +122,7 @@ def build_coco(records, image_size, images_dir):
                 ann_id += 1
 
     return {
-        "info": {"description": "Converted by annots_to_coco.py",
+        "info": {"description": f"Converted from {source} by annots_to_coco.py",
                  "date_created": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")},
         "licenses": [], "categories": categories, "images": images, "annotations": annotations,
     }
@@ -127,8 +132,11 @@ def main():
     args = parse_args()
     image_size = None
     if args.image_size:
-        w, h = args.image_size.lower().split("x", 1)
-        image_size = (int(w), int(h))
+        try:
+            w, h = args.image_size.lower().split("x", 1)
+            image_size = (int(w), int(h))
+        except (ValueError, TypeError):
+            sys.exit(f"[error] --image-size must be WxH (e.g. 1920x1080), got: {args.image_size!r}")
 
     if args.images_dir:
         try:
@@ -141,7 +149,8 @@ def main():
         sys.exit("[error] no input JSON files found.")
 
     records = load_records(paths)
-    coco = build_coco(records, image_size, args.images_dir)
+    source = ", ".join(args.inputs)
+    coco = build_coco(records, image_size, args.images_dir, source)
 
     inp = Path(args.inputs[0])
     out = Path(args.output) if args.output else inp.parent / f"{inp.stem}_to_coco.json"
