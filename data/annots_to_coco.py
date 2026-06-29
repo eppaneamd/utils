@@ -137,7 +137,7 @@ def main():
         sys.exit(f"[error] file not found: {inp}")
 
     records = load_records(inp)
-    coco = build_coco(records, image_size, args.images_dir, args.input)
+    coco = build_coco(records, image_size, args.images_dir, inp.name)
 
     out = Path(args.output) if args.output else inp.parent / f"{inp.stem}_to_coco.json"
     summary = (f"{len(coco['images'])} images · {len(coco['annotations'])} annotations · "
