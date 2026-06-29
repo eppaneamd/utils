@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Convert bounding box annotation JSON files to COCO format.
+Convert a bounding box annotation JSON file to COCO format.
 
 Coordinates in the input are normalized (0-1). Provide either --images-dir
 (reads dimensions per image file) or --image-size (uniform dimensions).
 
 Usage:
-  python annots_to_coco.py annotations/ --image-size 1920x1080
-  python annots_to_coco.py batch1.json batch2.json --images-dir ./images/ --dry-run
+  python annots_to_coco.py example-annotations.json --images-dir example-images/ --pretty
+  python annots_to_coco.py example-annotations.json --image-size 1920x1080
 """
 
 import argparse
@@ -20,8 +20,8 @@ from pathlib import Path
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("inputs", nargs="+", metavar="INPUT",
-                   help="JSON file(s) or directory/ies")
+    p.add_argument("input", metavar="INPUT",
+                   help="Annotation JSON file")
     p.add_argument("--output", "-o", default=None,
                    help="Output file (default: {input_stem}_to_coco.json next to the input)")
     p.add_argument("--dry-run", action="store_true",
@@ -35,26 +35,14 @@ def parse_args():
     return p.parse_args()
 
 
-def collect_paths(inputs):
-    paths = []
-    for inp in inputs:
-        p = Path(inp)
-        paths.extend(sorted(p.rglob("*.json")) if p.is_dir() else [p])
-    return [p for p in paths if p.exists()]
-
-
-def load_records(paths):
-    records = []
-    for path in paths:
-        try:
-            data = json.loads(path.read_text())
-        except json.JSONDecodeError as e:
-            sys.exit(f"[error] malformed JSON in {path}: {e}")
-        if "annotations" in data:
-            records.extend(data["annotations"])
-        else:
-            print(f"[warning] no 'annotations' key in {path}, skipping", file=sys.stderr)
-    return records
+def load_records(path):
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        sys.exit(f"[error] malformed JSON in {path}: {e}")
+    if "annotations" not in data:
+        sys.exit(f"[error] no 'annotations' key in {path}")
+    return data["annotations"]
 
 
 def resolve_dims(filename, image_size, images_dir):
@@ -144,15 +132,13 @@ def main():
         except ImportError:
             sys.exit("[error] --images-dir requires Pillow: pip install Pillow")
 
-    paths = collect_paths(args.inputs)
-    if not paths:
-        sys.exit("[error] no input JSON files found.")
+    inp = Path(args.input)
+    if not inp.exists():
+        sys.exit(f"[error] file not found: {inp}")
 
-    records = load_records(paths)
-    source = ", ".join(args.inputs)
-    coco = build_coco(records, image_size, args.images_dir, source)
+    records = load_records(inp)
+    coco = build_coco(records, image_size, args.images_dir, args.input)
 
-    inp = Path(args.inputs[0])
     out = Path(args.output) if args.output else inp.parent / f"{inp.stem}_to_coco.json"
     summary = (f"{len(coco['images'])} images · {len(coco['annotations'])} annotations · "
                f"{len(coco['categories'])} categories → {out}")
