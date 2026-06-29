@@ -31,6 +31,8 @@ def parse_args():
                    help="Uniform image dimensions for all images, e.g. 1920x1080")
     g.add_argument("--images-dir", metavar="DIR",
                    help="Directory containing images; dimensions read per file via Pillow")
+    p.add_argument("--category-id-start", type=int, choices=[0, 1], default=0,
+                   help="Starting value for category IDs (default: 0)")
     p.add_argument("--pretty", action="store_true")
     return p.parse_args()
 
@@ -74,14 +76,14 @@ def make_annotation(lbl, img_id, ann_id, cat_id, w, h):
     }
 
 
-def build_coco(records, image_size, images_dir, source):
+def build_coco(records, image_size, images_dir, source, id_start):
     all_names = sorted({
         lbl["label"].strip()
         for rec in records
         for lbl in rec.get("labels", [])
         if lbl.get("geometry", {}).get("kind") == "box" and lbl.get("label", "").strip()
     })
-    categories = [{"id": i + 1, "name": n, "supercategory": "object"}
+    categories = [{"id": i + id_start, "name": n, "supercategory": "object"}
                   for i, n in enumerate(all_names)]
     cat_id = {c["name"]: c["id"] for c in categories}
 
@@ -137,7 +139,7 @@ def main():
         sys.exit(f"[error] file not found: {inp}")
 
     records = load_records(inp)
-    coco = build_coco(records, image_size, args.images_dir, inp.name)
+    coco = build_coco(records, image_size, args.images_dir, inp.name, args.category_id_start)
 
     out = Path(args.output) if args.output else inp.parent / f"{inp.stem}_to_coco.json"
     summary = (f"{len(coco['images'])} images · {len(coco['annotations'])} annotations · "
