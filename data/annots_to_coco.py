@@ -5,9 +5,15 @@ Convert a bounding box annotation JSON file to COCO format.
 Coordinates in the input are normalized (0-1). Provide either --images-dir
 (reads dimensions per image file) or --image-size (uniform dimensions).
 
+The output file defaults to {input_stem}_to_coco.json next to the input.
+Category IDs start from 0 by default; use --category-id-start 1 for
+standard COCO convention.
+
 Usage:
   python annots_to_coco.py example-annotations.json --images-dir example-images/ --pretty
   python annots_to_coco.py example-annotations.json --image-size 1920x1080
+  python annots_to_coco.py example-annotations.json --images-dir example-images/ --category-id-start 1
+  python annots_to_coco.py example-annotations.json --image-size 1920x1080 --output out.json --dry-run
 """
 
 import argparse
